@@ -1,0 +1,433 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Interactive Tree with CRUD</title>
+    <style>
+      :root {
+        --bg: #0f172a;          /* slate-900 */
+        --panel: #111827;       /* gray-900 */
+        --muted: #334155;       /* slate-600 */
+        --text: #e5e7eb;        /* gray-200 */
+        --accent: #22d3ee;      /* cyan-400 */
+        --accent-2: #60a5fa;    /* blue-400 */
+        --danger: #f87171;      /* red-400 */
+        --ok: #34d399;          /* emerald-400 */
+        --border: #1f2937;      /* gray-800 */
+        --hover: rgba(255,255,255,0.06);
+      }
+
+      * { box-sizing: border-box; }
+      html, body { height: 100%; }
+      body {
+        margin: 0;
+        font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica Neue, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+        background: radial-gradient(1200px 600px at 20% 10%, rgba(96,165,250,0.12), transparent 50%),
+                    radial-gradient(1000px 800px at 90% 10%, rgba(34,211,238,0.12), transparent 50%),
+                    linear-gradient(180deg, #0b1220, #0a1020 30%, #0b1325 100%);
+        color: var(--text);
+      }
+
+      .container {
+        max-width: 1100px;
+        margin: 0 auto;
+        padding: 24px;
+      }
+
+      .app-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 16px 18px;
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        background:
+          radial-gradient(400px 200px at 0% 0%, rgba(34,211,238,0.08), transparent 70%),
+          radial-gradient(400px 200px at 100% 0%, rgba(96,165,250,0.08), transparent 70%),
+          linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+        backdrop-filter: blur(6px);
+      }
+
+      .title {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        font-size: 20px;
+        font-weight: 600;
+      }
+
+      .title .dot {
+        width: 10px; height: 10px; border-radius: 50%; background: linear-gradient(135deg, var(--accent), var(--accent-2)); box-shadow: 0 0 16px rgba(34,211,238,0.6);
+      }
+
+      .actions { display: flex; gap: 8px; }
+      .btn {
+        appearance: none; border: 1px solid var(--border); background: #0b1220; color: var(--text);
+        padding: 8px 12px; border-radius: 10px; cursor: pointer; font-weight: 600; letter-spacing: .2px;
+      }
+      .btn:hover { background: var(--hover); }
+      .btn.primary { border-color: rgba(34,211,238,0.5); background: linear-gradient(180deg, rgba(34,211,238,0.15), rgba(34,211,238,0.08)); }
+
+      .panel {
+        margin-top: 16px;
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        background:
+          radial-gradient(800px 200px at 50% 0%, rgba(255,255,255,0.04), transparent 60%),
+          linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+        padding: 12px 8px;
+      }
+
+      /* Tree */
+      .tree {
+        list-style: none;
+        margin: 0;
+        padding: 10px 8px 18px 8px;
+      }
+      .tree, .tree ul { position: relative; }
+      .tree ul {
+        list-style: none; margin: 4px 0 4px 20px; padding-left: 16px; border-left: 1px dashed rgba(148,163,184,0.25);
+      }
+
+      .node {
+        display: flex; align-items: center; gap: 6px; padding: 6px 8px; border-radius: 8px; position: relative;
+      }
+      .node:hover { background: var(--hover); }
+
+      .caret {
+        width: 18px; height: 18px; display: inline-flex; align-items: center; justify-content: center;
+        color: var(--muted); cursor: pointer; border-radius: 6px;
+      }
+      .caret:hover { background: rgba(255,255,255,0.06); color: var(--text); }
+      .caret.hidden { visibility: hidden; }
+
+      .label {
+        flex: 1; cursor: pointer; user-select: none; padding: 4px 6px; border-radius: 6px; font-weight: 500;
+      }
+      .label:focus { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+      .badge {
+        font-size: 11px; color: #a5b4fc; background: rgba(99,102,241,0.12); padding: 2px 6px; border-radius: 999px; border: 1px solid rgba(99,102,241,0.3);
+      }
+
+      .menu-btn {
+        width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center; border-radius: 8px;
+        border: 1px solid var(--border); background: #0b1220; color: var(--text); cursor: pointer;
+      }
+      .menu-btn:hover { background: var(--hover); }
+
+      .menu {
+        position: absolute; z-index: 10; min-width: 180px; padding: 6px; border: 1px solid var(--border); border-radius: 12px; display: none;
+        background: radial-gradient(600px 200px at 20% -30%, rgba(96,165,250,0.15), transparent 50%),
+                    radial-gradient(600px 200px at 120% -40%, rgba(34,211,238,0.15), transparent 50%),
+                    linear-gradient(180deg, #0b1220, #0b1325);
+        box-shadow: 0 10px 30px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.03);
+      }
+      .menu.open { display: block; }
+      .menu .item { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 8px; cursor: pointer; }
+      .menu .item:hover { background: var(--hover); }
+      .menu .item.danger:hover { background: rgba(248,113,113,0.12); }
+      .menu hr { border: none; height: 1px; background: var(--border); margin: 6px 4px; }
+
+      .footer {
+        margin-top: 14px; display: flex; gap: 10px; align-items: center; color: #9ca3af; font-size: 12px;
+      }
+      .kbd { border: 1px solid var(--border); background: #0b1220; padding: 2px 6px; border-radius: 6px; color: #cbd5e1; }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="app-header">
+        <div class="title">
+          <span class="dot"></span>
+          Interactive Tree Builder
+        </div>
+        <div class="actions">
+          <button id="add-parent" class="btn primary">+ Add Parent Node</button>
+          <button id="reset-tree" class="btn" title="Clears all nodes">Reset</button>
+        </div>
+      </div>
+
+      <div class="panel">
+        <ul id="tree" class="tree" aria-label="Tree Root"></ul>
+      </div>
+
+      <div class="footer">
+        <span>Tip: Click a label to expand/collapse. Use the ••• button for options.</span>
+        <span class="kbd">LocalStorage</span>
+      </div>
+    </div>
+
+    <!-- Context Menu Template -->
+    <div id="context-menu" class="menu" role="menu" aria-hidden="true">
+      <div class="item" data-action="add-child">➕ Add Child</div>
+      <div class="item" data-action="add-sibling">➕ Add Sibling</div>
+      <div class="item" data-action="rename">✏️ Rename</div>
+      <hr />
+      <div class="item danger" data-action="delete">🗑️ Delete</div>
+    </div>
+
+    <script>
+      // Data model
+      // node: { id: string, title: string, children: node[], expanded: boolean }
+      const STORAGE_KEY = 'tree-data-v1';
+      let roots = [];
+      let idCounter = 1;
+
+      const qs = (sel, el=document) => el.querySelector(sel);
+      const qsa = (sel, el=document) => Array.from(el.querySelectorAll(sel));
+
+      function uid() { return String(idCounter++); }
+
+      function save() {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({ roots, idCounter }));
+      }
+
+      function load() {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return false;
+        try {
+          const parsed = JSON.parse(raw);
+          roots = parsed.roots || [];
+          idCounter = parsed.idCounter || 1;
+          return true;
+        } catch (e) {
+          console.warn('Failed to parse saved tree, starting fresh');
+          return false;
+        }
+      }
+
+      function createNode(title='New Node') {
+        return { id: uid(), title, children: [], expanded: true };
+      }
+
+      function findNodeById(id, nodes=roots) {
+        for (const n of nodes) {
+          if (n.id === id) return n;
+          const inChild = findNodeById(id, n.children);
+          if (inChild) return inChild;
+        }
+        return null;
+      }
+
+      function findParentAndIndex(id, nodes=roots, parent=null) {
+        for (let i=0;i<nodes.length;i++) {
+          const n = nodes[i];
+          if (n.id === id) return { parent, index: i, list: nodes };
+          const found = findParentAndIndex(id, n.children, n);
+          if (found) return found;
+        }
+        return null;
+      }
+
+      function render() {
+        const treeEl = qs('#tree');
+        treeEl.innerHTML = '';
+        const frag = document.createDocumentFragment();
+        for (const node of roots) frag.appendChild(renderNode(node));
+        treeEl.appendChild(frag);
+      }
+
+      function renderNode(node) {
+        const li = document.createElement('li');
+
+        const row = document.createElement('div');
+        row.className = 'node';
+
+        const caret = document.createElement('div');
+        caret.className = 'caret' + (node.children.length ? '' : ' hidden');
+        caret.setAttribute('data-id', node.id);
+        caret.innerHTML = node.expanded ? '▾' : '▸';
+
+        const label = document.createElement('div');
+        label.className = 'label';
+        label.tabIndex = 0;
+        label.setAttribute('data-id', node.id);
+        label.textContent = node.title;
+
+        const count = document.createElement('span');
+        count.className = 'badge';
+        count.textContent = `${node.children.length}`;
+
+        const menuBtn = document.createElement('button');
+        menuBtn.className = 'menu-btn';
+        menuBtn.setAttribute('data-id', node.id);
+        menuBtn.setAttribute('aria-haspopup', 'menu');
+        menuBtn.title = 'Options';
+        menuBtn.textContent = '•••';
+
+        row.appendChild(caret);
+        row.appendChild(label);
+        row.appendChild(count);
+        row.appendChild(menuBtn);
+        li.appendChild(row);
+
+        if (node.children.length) {
+          const ul = document.createElement('ul');
+          ul.style.display = node.expanded ? 'block' : 'none';
+          for (const c of node.children) ul.appendChild(renderNode(c));
+          li.appendChild(ul);
+        }
+        return li;
+      }
+
+      // Actions
+      function addParent() {
+        const name = prompt('Parent node name:', 'Parent');
+        if (!name) return;
+        roots.push(createNode(name));
+        save();
+        render();
+      }
+
+      function addChild(id) {
+        const target = findNodeById(id);
+        if (!target) return;
+        const name = prompt('Child node name:', 'Child');
+        if (!name) return;
+        target.children.push(createNode(name));
+        target.expanded = true;
+        save();
+        render();
+      }
+
+      function addSibling(id) {
+        const info = findParentAndIndex(id);
+        if (!info) return; // if not found
+        const name = prompt('Sibling node name:', 'Sibling');
+        if (!name) return;
+        const sibling = createNode(name);
+        info.list.splice(info.index + 1, 0, sibling);
+        if (info.parent) info.parent.expanded = true;
+        save();
+        render();
+      }
+
+      function renameNode(id) {
+        const node = findNodeById(id);
+        if (!node) return;
+        const name = prompt('Rename node:', node.title);
+        if (!name) return;
+        node.title = name;
+        save();
+        render();
+      }
+
+      function deleteNode(id) {
+        const info = findParentAndIndex(id);
+        if (!info) return;
+        const node = info.list[info.index];
+        if (!confirm(`Delete node "${node.title}" and all of its children?`)) return;
+        info.list.splice(info.index, 1);
+        save();
+        render();
+      }
+
+      function toggleExpand(id) {
+        const node = findNodeById(id);
+        if (!node) return;
+        if (!node.children.length) return;
+        node.expanded = !node.expanded;
+        save();
+        render();
+      }
+
+      // Context menu handling
+      const menu = qs('#context-menu');
+      let menuForId = null;
+
+      function openMenuFor(targetBtn) {
+        const id = targetBtn.getAttribute('data-id');
+        menuForId = id;
+        const rect = targetBtn.getBoundingClientRect();
+        const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+        const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
+        menu.style.top = (rect.bottom + scrollTop + 6) + 'px';
+        menu.style.left = (rect.left + scrollLeft - 120 + rect.width) + 'px';
+        menu.classList.add('open');
+        menu.setAttribute('aria-hidden', 'false');
+      }
+
+      function closeMenu() {
+        menu.classList.remove('open');
+        menu.setAttribute('aria-hidden', 'true');
+        menuForId = null;
+      }
+
+      // Wire up
+      function init() {
+        if (!load()) {
+          // Seed with sample data for first-run UX
+          roots = [
+            { id: uid(), title: 'Parent A', expanded: true, children: [
+              { id: uid(), title: 'Child A1', expanded: true, children: [] },
+              { id: uid(), title: 'Child A2', expanded: true, children: [] },
+            ]},
+            { id: uid(), title: 'Parent B', expanded: true, children: [] },
+          ];
+          save();
+        }
+        render();
+
+        // Global actions
+        qs('#add-parent').addEventListener('click', addParent);
+        qs('#reset-tree').addEventListener('click', () => {
+          if (!confirm('Reset the tree? This will clear all data.')) return;
+          roots = [];
+          idCounter = 1;
+          save();
+          render();
+        });
+
+        // Tree delegation
+        qs('#tree').addEventListener('click', (e) => {
+          const el = e.target;
+          if (el.classList.contains('label')) {
+            toggleExpand(el.getAttribute('data-id'));
+          } else if (el.classList.contains('caret')) {
+            toggleExpand(el.getAttribute('data-id'));
+          } else if (el.classList.contains('menu-btn')) {
+            e.stopPropagation();
+            if (menu.classList.contains('open') && menuForId === el.getAttribute('data-id')) {
+              closeMenu();
+            } else {
+              openMenuFor(el);
+            }
+          }
+        });
+
+        document.addEventListener('click', (e) => {
+          if (!menu.contains(e.target) && !e.target.classList.contains('menu-btn')) {
+            closeMenu();
+          }
+        });
+
+        menu.addEventListener('click', (e) => {
+          const item = e.target.closest('.item');
+          if (!item) return;
+          const action = item.getAttribute('data-action');
+          const id = menuForId;
+          closeMenu();
+          if (!id) return;
+          switch(action) {
+            case 'add-child': addChild(id); break;
+            case 'add-sibling': addSibling(id); break;
+            case 'rename': renameNode(id); break;
+            case 'delete': deleteNode(id); break;
+          }
+        });
+
+        // Simple keyboard support: Enter toggles
+        qs('#tree').addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' && e.target.classList.contains('label')) {
+            toggleExpand(e.target.getAttribute('data-id'));
+          }
+        });
+      }
+
+      document.addEventListener('DOMContentLoaded', init);
+    </script>
+  </body>
+</html>
